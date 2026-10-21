@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">拾词</string>
+    <string name="settings_title">设置</string>
+    <string name="a11y_label">拾词 · 屏幕取词</string>
+    <string name="a11y_desc">开启后，拾词可以读取当前屏幕上显示的英文文本，用于翻译与查词。仅在本机处理，不上传整屏截图。</string>
+    <string name="wordbook_title">单词本</string>
+    <string name="review_title">复习</string>
+    <string name="story_title">记忆故事</string>
+</resources>

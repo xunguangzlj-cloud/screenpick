@@ -1,0 +1,18 @@
+# 构建产物
+build/
+dist/
+
+# 签名私钥 —— 绝不能进仓库
+keystore/
+*.keystore
+*.jks
+*.p12
+
+# 词库源数据（66MB 的 ECDICT 全量 csv + 下载的词表），用 tools/build_dict.py 重新拉
+refdata/
+*.csv
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
+*.log

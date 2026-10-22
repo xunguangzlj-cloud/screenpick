@@ -73,6 +73,15 @@ public final class Prefs {
         sp(c).edit().putInt("fontSize", v).apply();
     }
 
+    /** 首次引导是否已经做过——只在第一次装完后把用户送去无障碍开关页。 */
+    public static boolean guided(Context c) {
+        return sp(c).getBoolean("guided", false);
+    }
+
+    public static void setGuided(Context c, boolean v) {
+        sp(c).edit().putBoolean("guided", v).apply();
+    }
+
     public static boolean bubbleVisible(Context c) {
         return sp(c).getBoolean("bubbleVisible", true);
     }

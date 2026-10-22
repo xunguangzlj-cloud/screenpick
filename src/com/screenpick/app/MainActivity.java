@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
     private TextView overlayState;
     private TextView a11yState;
     private TextView bookLine;
+    private TextView a11yBtn;
     private boolean autoJumped = false;
 
     @Override
@@ -43,9 +44,12 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh();
-        // 无障碍服务没法由 App 自己打开，能做的是第一次进来就带用户直达开关页
-        if (!autoJumped && !isA11yEnabled(this)) {
+        // 无障碍服务没法由 App 自己打开，第一次装完带用户直达开关页就够。
+        // 不能每次都跳：服务被系统解绑时（划掉后台 / 覆盖安装 / force-stop 都会）
+        // 用户一打开 App 就被弹进系统设置，会以为软件坏了。
+        if (!autoJumped && !Prefs.guided(this) && !isA11yEnabled(this)) {
             autoJumped = true;
+            Prefs.setGuided(this, true);
             openA11ySettings();
         }
     }
@@ -99,9 +103,10 @@ public class MainActivity extends Activity {
         LinearLayout row2 = Ui.row(this);
         a11yState = Ui.text(this, "", 14f, Ui.TEXT, false);
         row2.addView(a11yState, weighted());
-        row2.addView(miniButton("去开启", new View.OnClickListener() {
+        a11yBtn = miniButton("去开启", new View.OnClickListener() {
             @Override public void onClick(View v) { openA11ySettings(); }
-        }));
+        });
+        row2.addView(a11yBtn);
         card.addView(row2, topMargin(10));
 
         // 没配 Key 时把这件事说清楚：免费通道在国内基本连不上
@@ -217,9 +222,24 @@ public class MainActivity extends Activity {
         overlayState.setText(ov ? "悬浮窗权限  ✓ 已开启" : "悬浮窗权限  ✗ 未开启");
         overlayState.setTextColor(ov ? 0xFF067647 : 0xFFB42318);
 
+        // 开关状态和"服务是否真的在跑"是两件事：
+        // 每次覆盖安装 APK 都会杀掉进程，无障碍绑定随之断掉，但系统里的开关仍显示为开。
+        // 用户看到的就是设置页那句"此服务出现故障"，而这里必须能识别出来。
         boolean ax = isA11yEnabled(this);
-        a11yState.setText(ax ? "屏幕取词服务  ✓ 已开启" : "屏幕取词服务  ✗ 未开启");
-        a11yState.setTextColor(ax ? 0xFF067647 : 0xFFB42318);
+        boolean running = ScreenReaderService.get() != null;
+        if (ax && running) {
+            a11yState.setText("屏幕取词服务  ✓ 运行中");
+            a11yState.setTextColor(0xFF067647);
+        } else if (ax && !running) {
+            a11yState.setText("屏幕取词服务  ⚠ 开关开着但没运行");
+            a11yState.setTextColor(0xFFB54708);
+        } else {
+            a11yState.setText("屏幕取词服务  ✗ 未开启");
+            a11yState.setTextColor(0xFFB42318);
+        }
+        if (a11yBtn != null) {
+            a11yBtn.setText(ax && !running ? "重新绑定" : (ax ? "去查看" : "去开启"));
+        }
 
         if (bookLine != null) {
             try {
@@ -271,6 +291,9 @@ public class MainActivity extends Activity {
             i.putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME",
                     cn.flattenToString());
             startActivity(i);
+            if (isA11yEnabled(this) && ScreenReaderService.get() == null) {
+                toast("把开关关掉，再打开一次，服务才会重新连上");
+            }
             return;
         } catch (Exception ignored) {
         }

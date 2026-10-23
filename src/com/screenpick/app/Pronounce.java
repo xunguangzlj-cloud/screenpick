@@ -2,7 +2,9 @@ package com.screenpick.app;
 
 import android.content.Context;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.os.Build;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
@@ -49,6 +51,11 @@ public final class Pronounce {
         // 媒体音量为 0 时播放是"成功"的，只是听不见——不提示的话用户只会以为功能坏了
         if (!hasVolume(app)) {
             toast(app, "媒体音量为 0，先把音量调上来才能听到发音");
+        }
+        // 连着蓝牙时声音会走蓝牙，手机扬声器不出声。这是"点了没反应"最常见的原因。
+        String route = bluetoothRoute(app);
+        if (route != null) {
+            toast(app, route);
         }
 
         // 网络下载不能放主线程；面板和弹窗都可能从 UI 线程调用
@@ -175,6 +182,26 @@ public final class Pronounce {
                 }
             }
         }, 3000);
+    }
+
+    /** 当前媒体是否路由到蓝牙——连了耳机/音箱时手机扬声器不会响。 */
+    private static String bluetoothRoute(Context c) {
+        try {
+            AudioManager am = (AudioManager) c.getSystemService(Context.AUDIO_SERVICE);
+            if (am == null) return null;
+            if (am.isBluetoothA2dpOn()) {
+                return "声音正从蓝牙设备播放，手机扬声器不会有声（关掉蓝牙或戴耳机）";
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                for (AudioDeviceInfo d : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+                    if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+                        return "声音正从蓝牙通话设备播放，手机扬声器不会有声";
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private static boolean hasVolume(Context c) {

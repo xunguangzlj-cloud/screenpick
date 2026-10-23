@@ -58,6 +58,30 @@ final class Http {
         }
     }
 
+    /** 下载二进制（发音音频用）。失败抛异常，由调用方决定降级。 */
+    static byte[] getBytes(String urlStr, int timeoutMs) throws IOException {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL(urlStr).openConnection();
+            c.setConnectTimeout(timeoutMs);
+            c.setReadTimeout(timeoutMs);
+            c.setRequestMethod("GET");
+            c.setInstanceFollowRedirects(true);
+            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) ScreenPick/1.0");
+            int code = c.getResponseCode();
+            if (code >= 400) throw new IOException("HTTP " + code);
+            try (InputStream in = c.getInputStream()) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                return bos.toByteArray();
+            }
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
     static String postJson(String urlStr, String json, String bearer, int timeoutMs) throws IOException {
         HttpURLConnection c = null;
         try {

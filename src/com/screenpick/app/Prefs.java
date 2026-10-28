@@ -48,12 +48,26 @@ public final class Prefs {
     }
 
     /** 在任意 App 里选中英文单词时，直接弹词条。 */
+    /**
+     * 「选中即查词」开关的进程内缓存。
+     * onAccessibilityEvent 是高频回调，每次都读 SharedPreferences 会成为负担；
+     * 缓存放在 Prefs 内部而不是让 Prefs 去引用 Service，避免两个类互相依赖
+     * （那种循环引用会让 d8 在打包阶段抛 NullPointerException）。
+     */
+    private static Boolean sLookup;
+
     public static boolean selectLookup(Context c) {
-        return sp(c).getBoolean("selectLookup", true);
+        Boolean v = sLookup;
+        if (v == null) {
+            v = sp(c).getBoolean("selectLookup", true);
+            sLookup = v;
+        }
+        return v;
     }
 
     public static void setSelectLookup(Context c, boolean v) {
         sp(c).edit().putBoolean("selectLookup", v).apply();
+        sLookup = v;
     }
 
     /** 点词时是否自动写入剪贴板。 */

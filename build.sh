@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SDK="${ANDROID_SDK_ROOT:-/d/DSH/buildenv/sdk}"
-BT="$SDK/build-tools/34.0.0"
+BT="$SDK/build-tools/35.0.0"
 PLATFORM="$SDK/platforms/android-34/android.jar"
 JH="${JAVA_HOME:-/d/DSH/buildenv/jdk-17.0.20.1+1}"
 export PATH="$JH/bin:$PATH"
@@ -71,8 +71,15 @@ echo "==> 4/6 d8"
 mkdir -p "$OUT/dex"
 find "$OBJ" -name '*.class' | while IFS= read -r f; do cygpath -w "$f"; done > "$OUT/classes.txt"
 echo "   class 文件 $(wc -l < "$OUT/classes.txt") 个"
-"$BT/d8.bat" --min-api "$MIN_SDK" --lib "$PLATFORM" \
-  --output "$OUT/dex" @"$OUT/classes.txt" > /dev/null
+# --thread-count 1：d8 8.2.2 并行打包会偶发 NullPointerException
+# （"Cannot invoke String.length() because null"，报错落在哪个 class 上每次都不一样），
+# 单线程稳定。输出落日志，失败时原样打印，不再用 "> /dev/null" 把现场吞掉。
+if ! "$BT/d8.bat" --min-api "$MIN_SDK" --lib "$PLATFORM" --thread-count 1 \
+  --output "$OUT/dex" @"$OUT/classes.txt" > "$OUT/d8.log" 2>&1; then
+  echo "!! d8 失败："
+  grep -vE '^[[:space:]]+at ' "$OUT/d8.log" | head -12
+  exit 1
+fi
 
 echo "==> 5/6 打包 dex + assets"
 "$JH/bin/java.exe" -version 2>/dev/null || true

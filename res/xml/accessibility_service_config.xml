@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  事件类型只留「选中文本变化」这一种。
+
+  抓屏走的是 getRootInActiveWindow() 主动查询，不依赖事件回调；
+  如果还订阅 windowStateChanged / windowContentChanged，滚动列表时每秒会
+  触发好几次，而每次回调都要读一次 SharedPreferences——这种持续高频回调
+  在厂商省电策略里很扎眼，是无障碍服务被回收的常见诱因。
+
+  notificationTimeout 从 120ms 放宽到 300ms，进一步降低回调频率。
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewTextSelectionChanged"
+    android:accessibilityEventTypes="typeViewTextSelectionChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:description="@string/a11y_desc"
-    android:notificationTimeout="120"
+    android:notificationTimeout="300"
     android:settingsActivity="com.screenpick.app.MainActivity" />

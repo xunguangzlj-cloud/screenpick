@@ -14,15 +14,22 @@ import java.util.concurrent.Executors;
 /**
  * 极简网络图片加载：内存 LRU + 固定线程池 + 按 tag 防止列表复用错位。
  * 引入 Glide/Picasso 要多 2MB 依赖，这里只需要加载一张配图，不值当。
+ *
+ * 注意：本文件全部使用命名内部类，不用匿名类。
+ * d8 8.2.2 处理这里的匿名类时会抛 NullPointerException
+ * （Cannot invoke "String.length()" because null），整个 dex 打包中止，
+ * 而构建脚本当时把这一步的失败吞掉了，导致一直在装旧包。
  */
 final class ImageLoader {
 
     private ImageLoader() {}
 
-    private static final LruCache<String, Bitmap> CACHE =
-            new LruCache<String, Bitmap>(6 * 1024 * 1024) {
-                @Override protected int sizeOf(String k, Bitmap v) { return v.getByteCount(); }
-            };
+    /**
+     * 按条目数限制（12 张 512x384 的图约 9MB），不重写 sizeOf。
+     * 原先是 LruCache 的匿名/命名子类，但 d8 8.2.2 解析这类子类会抛
+     * NullPointerException 让整个打包中止——绕开的办法就是不建子类。
+     */
+    private static final LruCache<String, Bitmap> CACHE = new LruCache<String, Bitmap>(12);
 
     private static final ExecutorService POOL = Executors.newFixedThreadPool(3);
 
@@ -30,7 +37,7 @@ final class ImageLoader {
         void onResult(boolean ok);
     }
 
-    static void load(final String url, final ImageView iv, final Callback cb) {
+    static void load(String url, ImageView iv, Callback cb) {
         if (url == null || url.isEmpty() || iv == null) return;
         Bitmap cached = CACHE.get(url);
         if (cached != null) {
@@ -39,19 +46,47 @@ final class ImageLoader {
             return;
         }
         iv.setTag(url);
-        POOL.execute(new Runnable() {
-            @Override public void run() {
-                final Bitmap bm = fetch(url);
-                if (bm != null) CACHE.put(url, bm);
-                iv.post(new Runnable() {
-                    @Override public void run() {
-                        if (!url.equals(iv.getTag())) return; // 已被别的请求抢占
-                        if (bm != null) iv.setImageBitmap(bm);
-                        if (cb != null) cb.onResult(bm != null);
-                    }
-                });
-            }
-        });
+        POOL.execute(new LoadTask(url, iv, cb));
+    }
+
+    /** 后台下载。 */
+    private static final class LoadTask implements Runnable {
+        private final String url;
+        private final ImageView iv;
+        private final Callback cb;
+
+        LoadTask(String url, ImageView iv, Callback cb) {
+            this.url = url;
+            this.iv = iv;
+            this.cb = cb;
+        }
+
+        @Override public void run() {
+            Bitmap bm = fetch(url);
+            if (bm != null) CACHE.put(url, bm);
+            iv.post(new ApplyTask(url, iv, cb, bm));
+        }
+    }
+
+    /** 回到主线程贴图；期间若该 ImageView 已被别的请求占用就丢弃。 */
+    private static final class ApplyTask implements Runnable {
+        private final String url;
+        private final ImageView iv;
+        private final Callback cb;
+        private final Bitmap bm;
+
+        ApplyTask(String url, ImageView iv, Callback cb, Bitmap bm) {
+            this.url = url;
+            this.iv = iv;
+            this.cb = cb;
+            this.bm = bm;
+        }
+
+        @Override public void run() {
+            if (!url.equals(iv.getTag())) return;
+            if (bm != null) iv.setImageBitmap(bm);
+            if (cb != null) cb.onResult(bm != null);
+        }
     }
 
     private static Bitmap fetch(String urlStr) {

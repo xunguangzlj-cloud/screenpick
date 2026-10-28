@@ -21,6 +21,8 @@ public class ScreenReaderService extends AccessibilityService {
     private String lastSelection = "";
     private long lastSelectionAt = 0;
 
+
+
     public static ScreenReaderService get() {
         return instance;
     }
